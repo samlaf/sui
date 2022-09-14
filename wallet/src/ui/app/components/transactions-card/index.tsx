@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cl from 'classnames';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { useIntl } from 'react-intl';
 import { Link } from 'react-router-dom';
 
+import { coinFormat } from '_app/shared/coin-balance/coin-format';
 import Icon, { SuiIcons } from '_components/icon';
 import { formatDate } from '_helpers';
 import { useMiddleEllipsis } from '_hooks';
-import { GAS_SYMBOL } from '_redux/slices/sui-objects/Coin';
-import { balanceFormatOptions } from '_shared/formatting';
+import { GAS_TYPE_ARG } from '_redux/slices/sui-objects/Coin';
 
 import type { TxResultState } from '_redux/slices/txresults';
 
@@ -50,6 +50,16 @@ function TransactionCard({ txn }: { txn: TxResultState }) {
               // 'minute',
           ])
         : false;
+    const txAmount = txn.amount;
+    // XXX: supports only SUI - it seems we always assume the type of the amount of a tx is SUI
+    const txAmountFormatted = useMemo(
+        () =>
+            txAmount
+                ? coinFormat(intl, BigInt(txAmount), GAS_TYPE_ARG, 'loose')
+                      .displayFull
+                : null,
+        [txAmount, intl]
+    );
 
     return (
         <Link
@@ -91,14 +101,10 @@ function TransactionCard({ txn }: { txn: TxResultState }) {
                     </div>
                 </div>
                 <div className={st.txTransferred}>
-                    {txn.amount && (
+                    {txAmountFormatted && (
                         <>
                             <div className={st.txAmount}>
-                                {intl.formatNumber(
-                                    BigInt(txn.amount || 0),
-                                    balanceFormatOptions
-                                )}{' '}
-                                {GAS_SYMBOL}
+                                {txAmountFormatted}
                             </div>
                             <div className={st.txFiatValue}></div>
                         </>
