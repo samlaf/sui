@@ -223,8 +223,6 @@ export class LocalTxnDataSerializer implements TxnDataSerializer {
       sender: signerAddress,
     };
 
-    console.log('transactiondata', txData);
-
     return this.serializeTransactionData(txData);
   }
 
