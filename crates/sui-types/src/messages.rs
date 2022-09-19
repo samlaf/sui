@@ -1932,7 +1932,7 @@ pub struct ExecuteTransactionRequest {
     pub request_type: ExecuteTransactionRequestType,
 }
 
-/// When requested to execute a transaction with WaitForLocalExecution,
+/// When a WaitForLocalExecution request to execute a transaction occurs,
 /// TransactionOrchestrator attempts to execute this transaction locally
 /// after it is finalized. This value represents whether the transaction
 /// is confirmed to be executed on this node before the response returns.
