@@ -1,17 +1,24 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import * as secp from "@noble/secp256k1";
+import * as secp from '@noble/secp256k1';
 import { Base64DataBuffer } from '../serialization/base64';
 import { Keypair } from './keypair';
 import { PublicKey, SignatureScheme } from './publickey';
 import { hmac } from '@noble/hashes/hmac';
-import { sha256 } from "@noble/hashes/sha256";
-import { Secp256k1PublicKey } from "./secp256k1-publickey";
+import { sha256 } from '@noble/hashes/sha256';
+import { Secp256k1PublicKey } from './secp256k1-publickey';
+import { HDKey } from '@scure/bip32';
+import bip39 from 'bip39-light';
+import {
+  isValidBIP32Path,
+  normalizeMnemonics,
+  validateMnemonics,
+} from './mnemonics';
 
 secp.utils.hmacSha256Sync = (key: Uint8Array, ...msgs: Uint8Array[]) => {
   const h = hmac.create(sha256, key);
-  msgs.forEach(msg => h.update(msg));
+  msgs.forEach((msg) => h.update(msg));
   return h.digest();
 };
 
@@ -42,10 +49,10 @@ export class Secp256k1Keypair implements Keypair {
       const secretKey: Uint8Array = secp.utils.randomPrivateKey();
       const publicKey: Uint8Array = secp.getPublicKey(secretKey, true);
 
-      this.keypair = {publicKey, secretKey};
+      this.keypair = { publicKey, secretKey };
     }
   }
-  
+
   /**
    * Get the key scheme of the keypair Secp256k1
    */
@@ -60,7 +67,7 @@ export class Secp256k1Keypair implements Keypair {
     const secretKey = secp.utils.randomPrivateKey();
     const publicKey = secp.getPublicKey(secretKey, true);
 
-    return new Secp256k1Keypair({publicKey, secretKey});
+    return new Secp256k1Keypair({ publicKey, secretKey });
   }
 
   /**
@@ -76,7 +83,6 @@ export class Secp256k1Keypair implements Keypair {
    * @param options: skip secret key validation
    */
 
-  
   static fromSecretKey(
     secretKey: Uint8Array,
     options?: { skipValidation?: boolean }
@@ -91,7 +97,7 @@ export class Secp256k1Keypair implements Keypair {
         throw new Error('Provided secretKey is invalid');
       }
     }
-    return new Secp256k1Keypair({publicKey, secretKey});
+    return new Secp256k1Keypair({ publicKey, secretKey });
   }
 
   /**
@@ -101,7 +107,7 @@ export class Secp256k1Keypair implements Keypair {
    */
   static fromSeed(seed: Uint8Array): Secp256k1Keypair {
     let publicKey = secp.getPublicKey(seed, true);
-    return new Secp256k1Keypair({publicKey, secretKey: seed});
+    return new Secp256k1Keypair({ publicKey, secretKey: seed });
   }
 
   /**
@@ -116,8 +122,33 @@ export class Secp256k1Keypair implements Keypair {
    */
   signData(data: Base64DataBuffer): Base64DataBuffer {
     const msgHash = sha256(data.getData());
-    return new Base64DataBuffer(
-      secp.signSync(msgHash, this.keypair.secretKey)
+    return new Base64DataBuffer(secp.signSync(msgHash, this.keypair.secretKey));
+  }
+
+  /**
+   * Derive Secp256k1 keypair from mnemonics and path.
+   * The path must be compliant to BIP-32 in form m/54'/784'/{account_index}'/{change_index}/{address_index}'
+   */
+  static deriveKeypair(path: string, mnemonics: string): Secp256k1Keypair {
+    if (!isValidBIP32Path(path)) {
+      throw new Error('Invalid derivation path');
+    }
+
+    const normalized = normalizeMnemonics(mnemonics);
+    if (!validateMnemonics(normalized)) {
+      throw new Error('Invalid mnemonics');
+    }
+    const key = HDKey.fromMasterSeed(bip39.mnemonicToSeed(normalized)).derive(
+      path
     );
+
+    if (key.privateKey === null || key.publicKey === null) {
+      throw new Error('Invalid derivation path');
+    }
+
+    return new Secp256k1Keypair({
+      publicKey: key.publicKey,
+      secretKey: key.privateKey,
+    });
   }
 }

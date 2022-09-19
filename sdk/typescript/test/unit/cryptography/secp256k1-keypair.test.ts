@@ -72,4 +72,43 @@ describe('secp256k1-keypair', () => {
     );
     expect(isValid).toBeTruthy();
   });
+
+  it('invalid mnemonics to derive secp256k1 keypair', () => {
+    expect(() => {
+      Secp256k1Keypair.deriveKeypair(`m/54'/784'/0'/0/0`, 'aaa');
+    }).toThrow('Invalid mnemonics');
+  });
+
+  it('derive secp256k1 keypair from path and mnemonics', () => {
+    // Test case generated against rust: /sui/crates/sui/src/unit_tests/keytool_tests.rs#L149
+    const keypair = Secp256k1Keypair.deriveKeypair(
+      `m/54'/784'/0'/0/0`,
+      'result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss'
+    );
+
+    expect(keypair.getPublicKey().toBase64()).toEqual(
+      'A+NxdDVYKrM9LjFdIem8ThlQCh/EyM3HOhU2WJF3SxMf'
+    );
+    expect(keypair.getPublicKey().toSuiAddress()).toEqual(
+      'ed17b3f435c03ff69c2cdc6d394932e68375f20f'
+    );
+  });
+
+  it('incorrect purpose node for secp256k1 derivation path', () => {
+    expect(() => {
+      Secp256k1Keypair.deriveKeypair(
+        `m/44'/784'/0'/0'/0'`,
+        'result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss'
+      );
+    }).toThrow('Invalid derivation path');
+  });
+
+  it('incorrect hardened path for secp256k1 key derivation', () => {
+    expect(() => {
+      Secp256k1Keypair.deriveKeypair(
+        `m/54'/784'/0'/0'/0'`,
+        'result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss'
+      );
+    }).toThrow('Invalid derivation path');
+  });
 });

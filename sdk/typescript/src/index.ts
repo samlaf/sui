@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-
+/// <reference types="./types/bip39-light" />
 export * from './cryptography/ed25519-keypair';
 export * from './cryptography/secp256k1-keypair';
 export * from './cryptography/keypair';
