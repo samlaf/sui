@@ -7875,6 +7875,7 @@ dependencies = [
  "msim",
  "sui-framework",
  "telemetry-subscribers",
+ "tracing",
  "workspace-hack 0.1.0",
 ]
 
