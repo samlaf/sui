@@ -202,6 +202,17 @@ impl BenchDriver {
     }
 }
 
+#[cfg(not(msim))]
+async fn ctrl_c() -> std::io::Result<()> {
+    tokio::signal::ctrl_c().await
+}
+
+// TODO: if more use is made of tokio::signal we should just add support for it to the sim.
+#[cfg(msim)]
+async fn ctrl_c() -> std::io::Result<()> {
+    futures::future::pending().await
+}
+
 #[async_trait]
 impl Driver<BenchmarkStats> for BenchDriver {
     async fn run(
@@ -272,7 +283,7 @@ impl Driver<BenchmarkStats> for BenchDriver {
                 let mut stat_start_time: Instant = Instant::now();
                 loop {
                     tokio::select! {
-                            _ = tokio::signal::ctrl_c() => {
+                            _ = ctrl_c() => {
                                 break;
                             }
                             _ = stat_interval.tick() => {
