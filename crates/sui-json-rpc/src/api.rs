@@ -503,7 +503,7 @@ pub trait TransactionExecutionApi {
     /// Request types:
     /// 1. ImmediateReturn: immediate return to client without waiting for any results
     ///     Note the transaction may fail without being noticed by client in this mode.
-    ///     After getting the response, client use poll the node to check transaction's result
+    ///     After getting the response, the client polls the node to check the result of the transaction
     /// 2. WaitForTxCert: wait for TransactionCertificate and then return to client.
     /// 3. WaitForEffectsCert: wait for TransactionEffectsCert and then return to client.
     ///     This mode is a proxy for transaction finality.
