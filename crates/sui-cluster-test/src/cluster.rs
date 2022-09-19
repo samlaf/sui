@@ -17,6 +17,7 @@ use sui_types::base_types::SuiAddress;
 use sui_types::crypto::KeypairTraits;
 use sui_types::crypto::SuiKeyPair;
 use sui_types::crypto::{get_key_pair, AccountKeyPair};
+use sui_types::intent::ChainId;
 use test_utils::network::{start_rpc_test_network_with_fullnode, TestNetwork};
 use tracing::info;
 
@@ -296,6 +297,7 @@ pub async fn new_wallet_context_from_cluster(
         keystore,
         client_type: ClientType::RPC(rpc_url.into(), None),
         active_address: Some(address),
+        chain_id: ChainId::Testing,
     }
     .persisted(&wallet_config_path)
     .save()

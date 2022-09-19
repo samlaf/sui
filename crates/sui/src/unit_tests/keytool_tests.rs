@@ -135,7 +135,7 @@ fn test_load_keystore_err() {
     assert!(res.is_ok());
 
     // cannot load keypair due to missing flag
-    assert!(KeystoreType::File(path2).init().is_err());
+    assert!(KeystoreType::File((path2, ChainId::Testing)).init().is_err());
 }
 
 #[test]

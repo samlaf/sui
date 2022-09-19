@@ -15,6 +15,8 @@ use std::{fs, io};
 
 use anyhow::{anyhow, bail};
 use clap::*;
+use move_package::BuildConfig;
+use sui_types::intent::ChainId;
 use tracing::info;
 
 use sui_config::gateway::GatewayConfig;
@@ -73,6 +75,8 @@ pub enum SuiCommand {
     KeyTool {
         #[clap(long)]
         keystore_path: Option<PathBuf>,
+        #[clap(long)]
+        chain_id: Option<String>,
         /// Subcommands.
         #[clap(subcommand)]
         cmd: KeyToolCommand,
@@ -227,7 +231,7 @@ impl SuiCommand {
                     Some(path) => PersistedConfig::read(&path)?,
                     None => GenesisConfig::for_local_testing(),
                 };
-
+                let chain_id = genesis_conf.chain_id;
                 if let Some(path) = write_config {
                     let persisted = genesis_conf.persisted(&path);
                     persisted.save()?;
@@ -247,7 +251,9 @@ impl SuiCommand {
                         .build()
                 };
 
-                let mut keystore = KeystoreType::File(keystore_path.clone()).init().unwrap();
+                let mut keystore = KeystoreType::File((keystore_path.clone(), ChainId::Testing))
+                    .init()
+                    .unwrap();
 
                 for key in &network_config.account_keys {
                     keystore.add_key(SuiKeyPair::Ed25519SuiKeyPair(key.copy()))?;
@@ -287,6 +293,7 @@ impl SuiCommand {
                     keystore: KeystoreType::File(keystore_path),
                     client_type: ClientType::Embedded(wallet_gateway_config),
                     active_address,
+                    chain_id,
                 };
 
                 wallet_config.save(&client_path)?;
@@ -309,10 +316,16 @@ impl SuiCommand {
                 Ok(())
             }
             SuiCommand::GenesisCeremony(cmd) => run(cmd),
-            SuiCommand::KeyTool { keystore_path, cmd } => {
+            SuiCommand::KeyTool {
+                keystore_path,
+                cmd,
+                chain_id,
+            } => {
+                let chain_id: ChainId =
+                    serde_json::from_str(&chain_id.unwrap_or_else(|| "0".to_owned()))?;
                 let keystore_path =
                     keystore_path.unwrap_or(sui_config_dir()?.join(SUI_KEYSTORE_FILENAME));
-                let mut keystore = KeystoreType::File(keystore_path).init()?;
+                let mut keystore = KeystoreType::File((keystore_path.clone(), chain_id)).init()?;
                 cmd.execute(&mut keystore)
             }
             SuiCommand::Console { config } => {
@@ -406,7 +419,9 @@ async fn prompt_if_no_config(wallet_conf_path: &Path) -> Result<(), anyhow::Erro
                 .parent()
                 .unwrap_or(&sui_config_dir()?)
                 .join(SUI_KEYSTORE_FILENAME);
-            let keystore = KeystoreType::File(keystore_path);
+            println!("Select chain id (0 for Testing, 1 for Testnet):");
+            let chain_id: ChainId = serde_json::from_str(read_line()?.trim())?;
+            let keystore = KeystoreType::File((keystore_path, chain_id));
             println!("Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1):");
             let key_scheme = match SignatureScheme::from_flag(read_line()?.trim()) {
                 Ok(s) => s,
@@ -418,11 +433,13 @@ async fn prompt_if_no_config(wallet_conf_path: &Path) -> Result<(), anyhow::Erro
                 "Generated new keypair for address with scheme {:?} [{new_address}]",
                 scheme.to_string()
             );
+
             println!("Secret Recovery Phrase : [{phrase}]");
             SuiClientConfig {
                 keystore,
                 client_type: client,
                 active_address: Some(new_address),
+                chain_id,
             }
             .persisted(wallet_conf_path)
             .save()?;

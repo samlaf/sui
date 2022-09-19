@@ -14,7 +14,7 @@ use std::fs;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
-
+use sui_types::intent::{ChainId, Intent};
 use sui_types::base_types::SuiAddress;
 use sui_types::crypto::{
     derive_key_pair_from_path, get_key_pair_from_rng, EncodeDecodeBase64, PublicKey, Signature,
@@ -25,7 +25,7 @@ use sui_types::crypto::{
 #[non_exhaustive]
 // This will work on user signatures, but not suitable for authority signatures.
 pub enum KeystoreType {
-    File(PathBuf),
+    File((PathBuf, ChainId)),
     InMem(usize),
 }
 
@@ -36,11 +36,14 @@ pub trait AccountKeystore: Send + Sync {
 }
 
 impl KeystoreType {
+    // #[cfg(not(test))]
     pub fn init(&self) -> Result<SuiKeystore, anyhow::Error> {
         Ok(match self {
-            KeystoreType::File(path) => SuiKeystore::from(FileBasedKeystore::load_or_create(path)?),
+            KeystoreType::File((path, chain_id)) => {
+                SuiKeystore::from(FileBasedKeystore::load_or_create(path)?, chain_id)
+            }
             KeystoreType::InMem(initial_key_number) => {
-                SuiKeystore::from(InMemKeystore::new(*initial_key_number))
+                SuiKeystore::from(InMemKeystore::new(*initial_key_number), &ChainId::Testing)
             }
         })
     }
@@ -138,15 +141,21 @@ impl FileBasedKeystore {
     }
 }
 
-pub struct SuiKeystore(Box<dyn AccountKeystore>);
+pub struct SuiKeystore {
+    keystore: Box<dyn AccountKeystore>,
+    chain_id: ChainId,
+}
 
 impl SuiKeystore {
-    fn from<S: AccountKeystore + 'static>(keystore: S) -> Self {
-        Self(Box::new(keystore))
+    fn from<S: AccountKeystore + 'static>(keystore: S, chain_id: &ChainId) -> Self {
+        Self {
+            keystore: Box::new(keystore),
+            chain_id: *chain_id,
+        }
     }
 
     pub fn add_key(&mut self, keypair: SuiKeyPair) -> Result<(), anyhow::Error> {
-        self.0.add_key(keypair)
+        self.keystore.add_key(keypair)
     }
 
     pub fn generate_new_key(
@@ -169,16 +178,16 @@ impl SuiKeystore {
     }
 
     pub fn keys(&self) -> Vec<PublicKey> {
-        self.0.keys()
+        self.keystore.keys()
     }
 
     pub fn addresses(&self) -> Vec<SuiAddress> {
         self.keys().iter().map(|k| k.into()).collect()
     }
 
-    pub fn signer(&self, signer: SuiAddress) -> impl Signer<Signature> + '_ {
-        KeystoreSigner::new(&*self.0, signer)
-    }
+    // pub fn signer(&self, signer: SuiAddress) -> impl Signer<Signature> + '_ {
+    //     self.0.sign
+    // }
 
     pub fn import_from_mnemonic(
         &mut self,
@@ -191,7 +200,7 @@ impl SuiKeystore {
         let seed = Seed::new(&mnemonic, "");
         match derive_key_pair_from_path(seed.as_bytes(), derivation_path, &key_scheme) {
             Ok((address, kp)) => {
-                self.0.add_key(kp)?;
+                self.keystore.add_key(kp)?;
                 Ok(address)
             }
             Err(e) => Err(anyhow!("error getting keypair {:?}", e)),
@@ -199,30 +208,11 @@ impl SuiKeystore {
     }
 
     pub fn sign(&self, address: &SuiAddress, msg: &[u8]) -> Result<Signature, signature::Error> {
-        self.0.sign(address, msg)
+        let intent = Intent::default().with_chain_id(self.chain_id);
+        println!("intent: {:?}", intent);
+        self.keystore.sign(address, msg)
     }
 }
-
-struct KeystoreSigner<'a> {
-    keystore: &'a dyn AccountKeystore,
-    address: SuiAddress,
-}
-
-impl<'a> KeystoreSigner<'a> {
-    pub fn new(keystore: &'a dyn AccountKeystore, account: SuiAddress) -> Self {
-        Self {
-            keystore,
-            address: account,
-        }
-    }
-}
-
-impl Signer<Signature> for KeystoreSigner<'_> {
-    fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
-        self.keystore.sign(&self.address, msg)
-    }
-}
-
 #[derive(Default)]
 struct InMemKeystore {
     keys: BTreeMap<SuiAddress, SuiKeyPair>,
@@ -261,16 +251,16 @@ impl InMemKeystore {
     }
 }
 
-impl AccountKeystore for Box<dyn AccountKeystore> {
-    fn sign(&self, address: &SuiAddress, msg: &[u8]) -> Result<Signature, signature::Error> {
-        (**self).sign(address, msg)
-    }
+// impl AccountKeystore for Box<dyn AccountKeystore> {
+//     fn sign(&self, address: &SuiAddress, msg: &[u8]) -> Result<Signature, signature::Error> {
+//         (**self).sign(address, msg)
+//     }
 
-    fn add_key(&mut self, keypair: SuiKeyPair) -> Result<(), anyhow::Error> {
-        (**self).add_key(keypair)
-    }
+//     fn add_key(&mut self, keypair: SuiKeyPair) -> Result<(), anyhow::Error> {
+//         (**self).add_key(keypair)
+//     }
 
-    fn keys(&self) -> Vec<PublicKey> {
-        (**self).keys()
-    }
-}
+//     fn keys(&self) -> Vec<PublicKey> {
+//         (**self).keys()
+//     }
+// }
