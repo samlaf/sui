@@ -507,7 +507,7 @@ pub trait TransactionExecutionApi {
     /// 2. WaitForTxCert: wait for TransactionCertificate and then return to client.
     /// 3. WaitForEffectsCert: wait for TransactionEffectsCert and then return to client.
     ///     This mode is a proxy for transaction finality.
-    /// 4. WaitForLocalExecution: wait for TransactionEffectsCert and make sure the node has
+    /// 4. WaitForLocalExecution: wait for TransactionEffectsCert and make sure the node
     ///     executed the transaction locally before returning the client. The local execution
     ///     makes sure this node is aware of this transaction when client fires subsequent queries.
     ///     However if the node fails to execute the transaction locally in a timely manner,
